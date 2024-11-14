@@ -1,142 +1,58 @@
-import { useState, useEffect } from 'react';
+// pages/api/data.js
+import supabase from '../lib/supabase';
 
-export default function DataPage() {
-  const [data, setData] = useState([]);
-  const [newText, setNewText] = useState('');
-  const [editText, setEditText] = useState('');
-  const [editId, setEditId] = useState(null);
-  const [error, setError] = useState('');
-
-  // Ambil data dari API saat halaman dimuat
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('/api/data');
-        const result = await response.json();
-        setData(result);
-      } catch (err) {
-        console.error(err);
-        setError('Error fetching data');
+export default async function handler(req, res) {
+  if (req.method === 'GET') {
+    // Ambil data dari Supabase
+    const { data, error } = await supabase
+      .from('texts')
+      .select('*');
+    if (error) {
+      return res.status(500).json({ message: 'Error fetching data' });
+    }
+    res.status(200).json(data);
+  } else if (req.method === 'POST') {
+    const { text } = req.body;
+    if (text) {
+      const { data, error } = await supabase
+        .from('texts')
+        .insert([{ text }]);
+      if (error) {
+        return res.status(500).json({ message: 'Error adding text' });
       }
-    };
-    fetchData();
-  }, []);
-
-  // Menambahkan teks baru
-  const handleAddText = async () => {
-    if (!newText) {
-      setError('Text cannot be empty');
-      return;
+      res.status(200).json({ message: 'Text added successfully', data });
+    } else {
+      res.status(400).json({ message: 'Text is required' });
     }
-
-    try {
-      const response = await fetch('/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: newText }),
-      });
-      const result = await response.json();
-      if (response.ok) {
-        setData(result.data);
-        setNewText('');
-        setError('');
-      } else {
-        setError(result.message);
+  } else if (req.method === 'PUT') {
+    const { id, newText } = req.body;
+    if (id && newText) {
+      const { data, error } = await supabase
+        .from('texts')
+        .update({ text: newText })
+        .eq('id', id);
+      if (error) {
+        return res.status(500).json({ message: 'Error updating text' });
       }
-    } catch (err) {
-      console.error(err);
-      setError('Error adding text');
+      res.status(200).json({ message: 'Text updated successfully', data });
+    } else {
+      res.status(400).json({ message: 'ID and new text are required' });
     }
-  };
-
-  // Mengedit teks
-  const handleEditText = async () => {
-    if (!editText || !editId) {
-      setError('Text and ID are required');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/data', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editId, newText: editText }),
-      });
-      const result = await response.json();
-      if (response.ok) {
-        setData(result.data);
-        setEditText('');
-        setEditId(null);
-        setError('');
-      } else {
-        setError(result.message);
+  } else if (req.method === 'DELETE') {
+    const { id } = req.body;
+    if (id) {
+      const { data, error } = await supabase
+        .from('texts')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        return res.status(500).json({ message: 'Error deleting text' });
       }
-    } catch (err) {
-      console.error(err);
-      setError('Error updating text');
+      res.status(200).json({ message: 'Text deleted successfully', data });
+    } else {
+      res.status(400).json({ message: 'ID is required' });
     }
-  };
-
-  // Menghapus teks
-  const handleDeleteText = async (id) => {
-    try {
-      const response = await fetch('/api/data', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      const result = await response.json();
-      if (response.ok) {
-        setData(result.data);
-        setError('');
-      } else {
-        setError(result.message);
-      }
-    } catch (err) {
-      console.error(err);
-      setError('Error deleting text');
-    }
-  };
-
-  return (
-    <div>
-      <h1>Data Page</h1>
-      <div>
-        <h2>Add Text</h2>
-        <input
-          type="text"
-          value={newText}
-          onChange={(e) => setNewText(e.target.value)}
-          placeholder="Enter new text"
-        />
-        <button onClick={handleAddText}>Add</button>
-      </div>
-
-      <div>
-        <h2>Edit Text</h2>
-        <input
-          type="text"
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          placeholder="Edit text"
-        />
-        <button onClick={handleEditText}>Update</button>
-      </div>
-
-      <div>
-        <h2>Existing Text</h2>
-        <ul>
-          {data.map((item) => (
-            <li key={item.id}>
-              {item.text} 
-              <button onClick={() => { setEditId(item.id); setEditText(item.text); }}>Edit</button>
-              <button onClick={() => handleDeleteText(item.id)}>Delete</button>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-    </div>
-  );
+  } else {
+    res.status(405).json({ message: 'Method Not Allowed' });
+  }
 }
